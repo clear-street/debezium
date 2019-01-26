@@ -6,12 +6,14 @@
 
 package io.debezium.connector.postgresql;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
@@ -89,21 +91,32 @@ public class PostgresConnectorTask extends BaseSourceTask {
                 logger.info(connection.serverInfo().toString());
                 schema.refresh(connection, false);
 
+                // create subject namer
                 TopicNameStrategy namer = new TopicNameStrategy();
                 namer.configure(config.asMap());
 
+                // create serder constructs necessary to convert between a connect schema to an avro schema
                 AvroData ad = new AvroData(new AvroDataConfig(config.asMap()));
                 AbstractKafkaAvroSerDe ak = new Seder(new KafkaAvroSerializerConfig(config.asMap()));
+
                 for(TableId tid : schema.tableIds()) {
+
+                    // registration subjects should be in the form <database-name>.<schema>.<table>
                     String topic = connectorConfig.databaseName() + "." + tid.toString();
-                    logger.info("schema for {}", topic);
 
+                    // convert the connect schema to an avro schema
                     Schema a = ad.fromConnectSchema(schema.schemaFor(tid).requiredValueSchema());
-                    logger.info(a.toString());
 
+                    // finally, try registering the schema
                     try {
                         ak.register(namer.getSubjectName(topic, false, null), a);
-                    } catch(Throwable t) {}
+                    }
+                    catch (RestClientException e) {
+                        throw new ConnectException(e);
+                    }
+                    catch(IOException e) {
+                        throw new ConnectException(e);
+                    }
                 }
             }
 

@@ -66,6 +66,7 @@ public class TableSchema implements DataCollectionSchema {
      * @param valueSchema the schema for the values; may be null
      * @param valueGenerator the function that converts a row into a single value object for Kafka Connect; may not be null but
      *            may return nulls
+     * @param requiredValueSchema same as "keySchema", except built with optional flag set to false
      */
     public TableSchema(Schema keySchema, Function<Object[], Object> keyGenerator,
             Envelope envelopeSchema,
@@ -87,9 +88,13 @@ public class TableSchema implements DataCollectionSchema {
         return valueSchema;
     }
 
-    public Schema requiredValueSchema() {
-        return requiredValueSchema;
-    }
+    /**
+     * Get the {@link Schema} that represents the table's columns, excluding those that make up the {@link #keySchema()}.
+     * This is the same as valueSchema() except isOptional() will return false
+     *
+     * @return the Schema describing the columns in the table; never null
+     */
+    public Schema requiredValueSchema() { return requiredValueSchema; }
 
     /**
      * Get the {@link Schema} that represents the table's primary key.
