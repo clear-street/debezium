@@ -6,16 +6,19 @@
 
 package io.debezium.connector.postgresql;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.avro.Schema;
 
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
@@ -25,6 +28,12 @@ import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.relational.TableId;
 import io.debezium.schema.TopicSelector;
 import io.debezium.util.LoggingContext;
+
+import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.avro.AvroDataConfig;
+import io.confluent.kafka.serializers.AbstractKafkaAvroSerDe;
+import io.confluent.kafka.serializers.KafkaAvroSerializerConfig;
+import io.confluent.kafka.serializers.subject.TopicNameStrategy;
 
 /**
  * Kafka connect source task which uses Postgres logical decoding over a streaming replication connection to process DB changes.
@@ -46,6 +55,15 @@ public class PostgresConnectorTask extends BaseSourceTask {
      * by Kafka Connect via this task.
      */
     private ChangeEventQueue<ChangeEvent> changeEventQueue;
+
+    /**
+     * Avro serialize/deserializer (SerDe) used for registering schemas at startup
+     */
+    private class SerDe extends AbstractKafkaAvroSerDe {
+        public SerDe(KafkaAvroSerializerConfig config) {
+            this.configureClientProperties(config);
+        }
+    }
 
     @Override
     public void start(Configuration config) {
@@ -74,6 +92,34 @@ public class PostgresConnectorTask extends BaseSourceTask {
             //Print out the server information
             try (PostgresConnection connection = taskContext.createConnection()) {
                 logger.info(connection.serverInfo().toString());
+                schema.refresh(connection, false);
+
+                // create subject namer
+                TopicNameStrategy namer = new TopicNameStrategy();
+                namer.configure(config.asMap());
+
+                // create serder constructs necessary to convert between a connect schema to an avro schema
+                AvroData ad = new AvroData(new AvroDataConfig(config.asMap()));
+                AbstractKafkaAvroSerDe serde = new SerDe(new KafkaAvroSerializerConfig(config.asMap()));
+
+                for(TableId tid : schema.tableIds()) {
+                    // registration subjects should be in the form <database-name>.<schema>.<table>
+                    String topic = connectorConfig.databaseName() + "." + tid.toString();
+
+                    // convert the connect schema to an avro schema
+                    Schema a = ad.fromConnectSchema(schema.schemaFor(tid).requiredValueSchema());
+
+                    // finally, try registering the schema
+                    try {
+                        serde.register(namer.getSubjectName(topic, false, null), a);
+                    }
+                    catch (RestClientException e) {
+                        throw new ConnectException(e);
+                    }
+                    catch(IOException e) {
+                        throw new ConnectException(e);
+                    }
+                }
             }
 
             if (existingOffset == null) {

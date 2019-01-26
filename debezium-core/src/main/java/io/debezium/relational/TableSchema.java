@@ -52,6 +52,7 @@ public class TableSchema implements DataCollectionSchema {
     private final Schema keySchema;
     private final Envelope envelopeSchema;
     private final Schema valueSchema;
+    private final Schema requiredValueSchema;
     private final Function<Object[], Object> keyGenerator;
     private final Function<Object[], Struct> valueGenerator;
 
@@ -65,13 +66,15 @@ public class TableSchema implements DataCollectionSchema {
      * @param valueSchema the schema for the values; may be null
      * @param valueGenerator the function that converts a row into a single value object for Kafka Connect; may not be null but
      *            may return nulls
+     * @param requiredValueSchema same as "keySchema", except built with optional flag set to false
      */
     public TableSchema(Schema keySchema, Function<Object[], Object> keyGenerator,
-            Envelope envelopeSchema,
-            Schema valueSchema, Function<Object[], Struct> valueGenerator) {
+                       Envelope envelopeSchema,
+                       Schema valueSchema, Function<Object[], Struct> valueGenerator, Schema requiredValueSchema) {
         this.keySchema = keySchema;
         this.envelopeSchema = envelopeSchema;
         this.valueSchema = valueSchema;
+        this.requiredValueSchema = requiredValueSchema;
         this.keyGenerator = keyGenerator != null ? keyGenerator : (row) -> null;
         this.valueGenerator = valueGenerator != null ? valueGenerator : (row) -> null;
     }
@@ -83,6 +86,16 @@ public class TableSchema implements DataCollectionSchema {
      */
     public Schema valueSchema() {
         return valueSchema;
+    }
+
+    /**
+     * Get the {@link Schema} that represents the table's columns, excluding those that make up the {@link #keySchema()}.
+     * This is the same as valueSchema() except isOptional() will return false
+     *
+     * @return the Schema describing the columns in the table; never null
+     */
+    public Schema requiredValueSchema() {
+        return requiredValueSchema;
     }
 
     /**
