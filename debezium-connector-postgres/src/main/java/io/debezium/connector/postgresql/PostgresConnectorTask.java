@@ -26,6 +26,12 @@ import io.debezium.relational.TableId;
 import io.debezium.schema.TopicSelector;
 import io.debezium.util.LoggingContext;
 
+import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.avro.AvroDataConfig;
+import io.confluent.kafka.serializers.AbstractKafkaAvroSerDe;
+import io.confluent.kafka.serializers.KafkaAvroSerializerConfig;
+import org.apache.avro.Schema;
+
 /**
  * Kafka connect source task which uses Postgres logical decoding over a streaming replication connection to process DB changes.
  *
@@ -46,6 +52,12 @@ public class PostgresConnectorTask extends BaseSourceTask {
      * by Kafka Connect via this task.
      */
     private ChangeEventQueue<ChangeEvent> changeEventQueue;
+
+    private class Seder extends AbstractKafkaAvroSerDe {
+        public Seder(KafkaAvroSerializerConfig config) {
+            this.configureClientProperties(config);
+        }
+    }
 
     @Override
     public void start(Configuration config) {
@@ -74,6 +86,17 @@ public class PostgresConnectorTask extends BaseSourceTask {
             //Print out the server information
             try (PostgresConnection connection = taskContext.createConnection()) {
                 logger.info(connection.serverInfo().toString());
+                schema.refresh(connection, true);
+
+                logger.info("DOING IT!!");
+                AvroData ad = new AvroData(new AvroDataConfig(config.asMap()));
+                AbstractKafkaAvroSerDe ak = new Seder(new KafkaAvroSerializerConfig(config.asMap()));
+                for(TableId tid : schema.tableIds()) {
+                    logger.info("schema for {}", tid.toString());
+
+                    Schema a = ad.fromConnectSchema(schema.schemaFor(tid).requiredValueSchema());
+                    logger.info(a.toString());
+                }
             }
 
             if (existingOffset == null) {

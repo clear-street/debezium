@@ -103,6 +103,7 @@ public class TableSchemaBuilder {
                 addField(valSchemaBuilder, column, mapper);
             }
         });
+        Schema reqSchema = valSchemaBuilder.build();
         Schema valSchema = valSchemaBuilder.optional().build();
         Schema keySchema = hasPrimaryKey.get() ? keySchemaBuilder.build() : null;
 
@@ -123,7 +124,7 @@ public class TableSchemaBuilder {
         Function<Object[], Struct> valueGenerator = createValueGenerator(valSchema, tableId, table.columns(), filter, mappers);
 
         // And the table schema ...
-        return new TableSchema(keySchema, keyGenerator, envelope, valSchema, valueGenerator);
+        return new TableSchema(keySchema, keyGenerator, envelope, valSchema, valueGenerator, reqSchema);
     }
 
     /**

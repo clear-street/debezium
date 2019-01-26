@@ -55,6 +55,7 @@
             <scope>provided</scope>
         </dependency>
 
+
         <!-- Testing -->
         <dependency>
             <groupId>io.debezium</groupId>
@@ -96,7 +97,6 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-avro-converter</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
    

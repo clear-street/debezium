@@ -52,6 +52,7 @@ public class TableSchema implements DataCollectionSchema {
     private final Schema keySchema;
     private final Envelope envelopeSchema;
     private final Schema valueSchema;
+    private final Schema requiredValueSchema;
     private final Function<Object[], Object> keyGenerator;
     private final Function<Object[], Struct> valueGenerator;
 
@@ -68,10 +69,11 @@ public class TableSchema implements DataCollectionSchema {
      */
     public TableSchema(Schema keySchema, Function<Object[], Object> keyGenerator,
             Envelope envelopeSchema,
-            Schema valueSchema, Function<Object[], Struct> valueGenerator) {
+            Schema valueSchema, Function<Object[], Struct> valueGenerator, Schema requiredValueSchema) {
         this.keySchema = keySchema;
         this.envelopeSchema = envelopeSchema;
         this.valueSchema = valueSchema;
+        this.requiredValueSchema = requiredValueSchema;
         this.keyGenerator = keyGenerator != null ? keyGenerator : (row) -> null;
         this.valueGenerator = valueGenerator != null ? valueGenerator : (row) -> null;
     }
@@ -83,6 +85,10 @@ public class TableSchema implements DataCollectionSchema {
      */
     public Schema valueSchema() {
         return valueSchema;
+    }
+
+    public Schema requiredValueSchema() {
+        return requiredValueSchema;
     }
 
     /**
