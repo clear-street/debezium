@@ -30,6 +30,7 @@ import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.avro.AvroDataConfig;
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDe;
 import io.confluent.kafka.serializers.KafkaAvroSerializerConfig;
+import io.confluent.kafka.serializers.subject.TopicNameStrategy;
 import org.apache.avro.Schema;
 
 /**
@@ -86,16 +87,23 @@ public class PostgresConnectorTask extends BaseSourceTask {
             //Print out the server information
             try (PostgresConnection connection = taskContext.createConnection()) {
                 logger.info(connection.serverInfo().toString());
-                schema.refresh(connection, true);
+                schema.refresh(connection, false);
 
-                logger.info("DOING IT!!");
+                TopicNameStrategy namer = new TopicNameStrategy();
+                namer.configure(config.asMap());
+
                 AvroData ad = new AvroData(new AvroDataConfig(config.asMap()));
                 AbstractKafkaAvroSerDe ak = new Seder(new KafkaAvroSerializerConfig(config.asMap()));
                 for(TableId tid : schema.tableIds()) {
-                    logger.info("schema for {}", tid.toString());
+                    String topic = connectorConfig.databaseName() + "." + tid.toString();
+                    logger.info("schema for {}", topic);
 
                     Schema a = ad.fromConnectSchema(schema.schemaFor(tid).requiredValueSchema());
                     logger.info(a.toString());
+
+                    try {
+                        ak.register(namer.getSubjectName(topic, false, null), a);
+                    } catch(Throwable t) {}
                 }
             }
 
